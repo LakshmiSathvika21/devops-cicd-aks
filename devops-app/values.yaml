@@ -1,0 +1,12 @@
+image:
+  repository: sathvika2109/devops-app
+  tag: latest
+service:
+  type: ClusterIP
+  port: 80
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+autoscaling:
+  enabled: false
