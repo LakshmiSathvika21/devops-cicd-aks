@@ -1,125 +1,235 @@
-# 🚀 Production-Grade CI/CD Pipeline with GitHub Actions, AKS & Observability
+# 🚀 DevOps CI/CD on AKS (Node.js + Helm + GitHub Actions + Prometheus/Grafana)
 
-## 📌 Overview
+This repository is a complete starter for shipping a containerized Node.js app to Azure Kubernetes Service (AKS) with automated CI/CD and observability.
 
-This project demonstrates an end-to-end DevOps pipeline that automates application build, testing, containerization, deployment, and monitoring using cloud-native tools.
+## What was improved
 
-It simulates a real-world production setup using GitHub Actions, Docker, Kubernetes (AKS), Helm, Prometheus, and Grafana.
-
----
-
-## 🏗️ Architecture
-
-Code → GitHub → GitHub Actions → Docker → Container Registry → AKS → Helm → Pods → Prometheus → Grafana
-
----
-
-## ⚙️ Tech Stack
-
-* CI/CD: GitHub Actions
-* Containerization: Docker
-* Orchestration: Kubernetes (AKS)
-* Deployment: Helm
-* Monitoring: Prometheus & Grafana
-* Cloud: Microsoft Azure
+- Added proper Node.js tests using the built-in `node:test` runner.
+- Refactored the app to support configurable `PORT`, graceful shutdown, and JSON health checks.
+- Fixed Helm chart port wiring (service and container now map correctly).
+- Added liveness/readiness probes in Helm values.
+- Improved Dockerfile layering for faster and more reliable builds (`npm ci`).
+- Improved GitHub Actions workflow (npm cache, manual trigger, `helm --wait`).
 
 ---
 
-## 🔄 CI/CD Workflow
+## Repository Structure
 
-1. Developer pushes code to GitHub
-2. GitHub Actions triggers pipeline
-3. App is built and tested
-4. Docker image is created and pushed
-5. Helm deploys app to AKS
-6. Prometheus collects metrics
-7. Grafana visualizes performance
-
----
-
-## 🚀 Setup Instructions
-
-### 1. Clone Repo
-
-```bash
-git clone <your-repo-url>
-cd devops-cicd-aks
+```text
+.
+├── .github/workflows/cicd.yml         # CI/CD pipeline
+├── Dockerfile                          # Container build
+├── app/
+│   ├── index.js                        # Express app
+│   ├── index.test.js                   # API tests
+│   ├── package.json
+│   └── package-lock.json
+├── devops-app/
+│   ├── Chart.yaml                      # Helm chart
+│   ├── values.yaml                     # Helm values
+│   └── templates/
+│       ├── deployment.yaml
+│       └── service.yaml
+└── monitoring-values.yaml              # Prometheus/Grafana values
 ```
 
-### 2. Run Locally
+---
+
+## Prerequisites
+
+Install these tools locally:
+
+- **Node.js 18+** and npm
+- **Docker**
+- **kubectl**
+- **Helm 3+**
+- **Azure CLI** (`az`)
+- **Git**
+
+Optional but recommended:
+- A Docker Hub account (or Azure Container Registry)
+- An Azure subscription with permission to create AKS resources
+
+---
+
+## 1) Run the application locally (every detail)
+
+From repo root:
 
 ```bash
 cd app
-npm install
-node index.js
+npm ci
+npm test
+npm start
 ```
 
-### 3. Build & Push Docker Image
+Expected behavior:
+- App starts on `http://localhost:3000`
+- `GET /` returns: `🚀 CI/CD Pipeline is Working!`
+- `GET /health` returns JSON with `status: "ok"`
+
+Quick verification:
 
 ```bash
-docker build -t <docker-username>/devops-app .
-docker push <docker-username>/devops-app
+curl -i http://localhost:3000/
+curl -i http://localhost:3000/health
 ```
 
-### 4. Create AKS Cluster
+### Run on a different port
 
 ```bash
-az aks create --resource-group devops-rg --name devops-cluster --node-count 1 --enable-addons monitoring --generate-ssh-keys
+PORT=8080 npm start
 ```
 
-### 5. Deploy with Helm
+---
+
+## 2) Build and run with Docker
+
+From repo root:
 
 ```bash
-helm upgrade --install devops-app ./devops-app
+docker build -t <docker-username>/devops-app:latest .
+docker run --rm -p 3000:3000 <docker-username>/devops-app:latest
+```
+
+Verify:
+
+```bash
+curl -i http://localhost:3000/health
+```
+
+Push image:
+
+```bash
+docker login
+docker push <docker-username>/devops-app:latest
 ```
 
 ---
 
-## 🔐 GitHub Secrets Required
+## 3) Create AKS and connect kubectl
 
-* DOCKER_USERNAME
-* DOCKER_PASSWORD
-* AZURE_CREDENTIALS
-
----
-
-## 📊 Monitoring
-
-* Prometheus collects cluster metrics
-* Grafana dashboards visualize CPU, memory, and pod health
-* Alertmanager configured for alerting
-
----
-
-## ⭐ Key Features
-
-* Automated CI/CD pipeline
-* Dockerized application
-* Kubernetes deployment using Helm
-* Real-time monitoring and alerting
-* Scalable architecture
+```bash
+az login
+az group create --name devops-rg --location eastus
+az aks create \
+  --resource-group devops-rg \
+  --name devops-cluster \
+  --node-count 1 \
+  --enable-addons monitoring \
+  --generate-ssh-keys
+az aks get-credentials --resource-group devops-rg --name devops-cluster
+kubectl get nodes
+```
 
 ---
 
-## 📈 Impact
+## 4) Deploy app with Helm
 
-* Reduced deployment time by ~60%
-* Improved deployment reliability
-* Enabled real-time observability
+Set image repo/tag in `devops-app/values.yaml` first (or override inline).
+
+Deploy:
+
+```bash
+helm upgrade --install devops-app ./devops-app --wait --timeout 5m
+kubectl get pods
+kubectl get svc
+```
+
+Port-forward to test:
+
+```bash
+kubectl port-forward svc/devops-app 8080:80
+curl -i http://localhost:8080/health
+```
 
 ---
 
-## 📸 Screenshots
+## 5) Enable monitoring (Prometheus + Grafana)
 
-(Add below)
+If you use `kube-prometheus-stack`:
 
-* GitHub Actions pipeline success
-* Kubernetes pods & services
-* Application running
-* Grafana dashboard
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+helm upgrade --install monitoring prometheus-community/kube-prometheus-stack -f monitoring-values.yaml
+```
+
+Check status:
+
+```bash
+kubectl get pods -n default
+```
+
+Access Grafana (example):
+
+```bash
+kubectl port-forward svc/monitoring-grafana 3001:80
+```
+
+Then open `http://localhost:3001`.
 
 ---
 
-## 👩‍💻 Author
+## 6) Configure GitHub Actions CI/CD
+
+Workflow file: `.github/workflows/cicd.yml`
+
+Create these GitHub Secrets in your repo:
+
+- `DOCKER_USERNAME`
+- `DOCKER_PASSWORD`
+- `AZURE_CREDENTIALS`
+
+### How to generate `AZURE_CREDENTIALS`
+
+Create a service principal with contributor access to your resource group, then save the JSON output as the secret value:
+
+```bash
+az ad sp create-for-rbac \
+  --name github-actions-devops-aks \
+  --role contributor \
+  --scopes /subscriptions/<SUBSCRIPTION_ID>/resourceGroups/devops-rg \
+  --sdk-auth
+```
+
+After secrets are added:
+1. Push to `main` (or run manually using **workflow_dispatch**).
+2. `build-test` runs npm install + tests.
+3. `docker` builds and pushes image.
+4. `deploy` connects to AKS and runs Helm upgrade/install.
+
+---
+
+## 7) Troubleshooting
+
+### App not reachable in cluster
+
+- Confirm pod is running: `kubectl get pods`
+- Check pod logs: `kubectl logs deploy/devops-app`
+- Check service/endpoints:
+  - `kubectl get svc`
+  - `kubectl get endpoints`
+
+### Helm deployment timeout
+
+- Inspect events: `kubectl describe pod <pod-name>`
+- Verify image exists and is public/private auth is configured.
+
+### GitHub Actions fails on deploy
+
+- Re-check `AZURE_CREDENTIALS` JSON formatting.
+- Ensure service principal has access to `devops-rg`.
+
+---
+
+## Key Endpoints
+
+- App: `/`
+- Health: `/health`
+
+---
+
+## Author
 
 Lakshmi Sathvika Annapareddy
