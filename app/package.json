@@ -1,0 +1,10 @@
+{
+  "name": "devops-app",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "echo \"Tests Passed\""
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
