@@ -2,56 +2,59 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
+  workflow_dispatch:
 
 jobs:
   build-test:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Install Node
-      uses: actions/setup-node@v4
-      with:
-        node-version: 18
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+          cache-dependency-path: app/package-lock.json
 
-    - name: Install dependencies
-      run: cd app && npm install
+      - name: Install dependencies
+        run: cd app && npm ci
 
-    - name: Run tests
-      run: cd app && npm test
+      - name: Run tests
+        run: cd app && npm test
 
   docker:
     needs: build-test
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-    - name: Docker Login
-      run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+      - name: Docker Login
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-    - name: Build Image
-      run: docker build -t ${{ secrets.DOCKER_USERNAME }}/devops-app:latest .
+      - name: Build Image
+        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/devops-app:latest .
 
-    - name: Push Image
-      run: docker push ${{ secrets.DOCKER_USERNAME }}/devops-app:latest
-  
+      - name: Push Image
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/devops-app:latest
+
   deploy:
     needs: docker
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4        # ← Add this step
+      - uses: actions/checkout@v4
 
-    - name: Azure Login
-      uses: azure/login@v2
-      with:
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: Get AKS Credentials
-      run: az aks get-credentials --resource-group devops-rg --name devops-cluster
+      - name: Get AKS Credentials
+        run: az aks get-credentials --resource-group devops-rg --name devops-cluster
 
-    - name: Deploy with Helm
-      run: helm upgrade --install devops-app ./devops-app
+      - name: Deploy with Helm
+        run: helm upgrade --install devops-app ./devops-app --wait --timeout 5m

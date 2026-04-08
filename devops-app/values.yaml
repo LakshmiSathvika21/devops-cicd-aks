@@ -1,12 +1,33 @@
 image:
   repository: sathvika2109/devops-app
   tag: latest
+  pullPolicy: IfNotPresent
+
 service:
   type: ClusterIP
   port: 80
+  targetPort: 3000
+
+containerPort: 3000
+
 serviceAccount:
   create: true
   annotations: {}
   name: ""
+
 autoscaling:
   enabled: false
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 15
+  periodSeconds: 20
